@@ -114,6 +114,8 @@ select { width: 112px; height: 34px; border: 1px solid #d7ddda; border-radius: 7
 .belt-result-mini span, .belt-result-mini small { color: #657572; font-size: 9px; }
 .belt-result-mini strong { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .belt-result-mini small { grid-column: 1 / -1; margin-top: 4px; }
+.pulley-limit { margin-top: 8px; padding: 8px 10px; border: 1px solid #ead5b2; border-radius: 7px; background: #fff8eb; color: #835c20; font-size: 9px; font-weight: 700; line-height: 1.45; }
+.frc-reference { margin: 7px 0 10px; padding: 8px 10px; border-left: 3px solid #3a7f89; border-radius: 0 6px 6px 0; background: #eef6f6; color: #496764; font-size: 9px; line-height: 1.5; }
 .help-dot { width: 16px; height: 16px; margin-left: 4px; padding: 0; border: 1px solid #aeb5b1; border-radius: 50%; background: transparent; color: #87908d; font-size: 9px; }
 .switch { margin-left: auto; }
 .switch input { display: none; }

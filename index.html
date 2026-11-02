@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="브라우저에서 정밀 인벌류트 기어를 설계하고 SVG, DXF, STL, 3MF로 내보내는 GearForge Studio">
+  <meta name="description" content="구하기 어려운 FRC 동력전달 부품을 도면 기반으로 대체 제작하고, 범용 기어와 풀리를 SVG, DXF, STL, 3MF로 내보내는 GearForge Studio">
   <title>GearForge Studio</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -11,7 +11,7 @@
   <header class="topbar">
     <a class="brand" href="#" aria-label="GearForge Studio 홈">
       <span class="brand-mark" aria-hidden="true"><i></i></span>
-      <span><strong>GEARFORGE</strong><small>PRECISION GEAR STUDIO</small></span>
+      <span><strong>GEARFORGE</strong><small>FRC PARTS &amp; GEAR STUDIO</small></span>
     </a>
     <nav class="workspace-tabs" aria-label="작업공간">
       <button class="workspace-tab active">설계</button>
@@ -27,7 +27,7 @@
   <main class="app-shell">
     <aside class="panel controls-panel">
       <div class="panel-heading">
-        <div><span class="eyebrow">GEOMETRY</span><h1>기어 파라미터</h1></div>
+        <div><span class="eyebrow">FRC FABRICATION</span><h1>동력부품 파라미터</h1></div>
         <span class="status-dot">LIVE</span>
       </div>
 
@@ -63,6 +63,12 @@
         </div>
 
         <div class="belt-controls" id="beltControls" hidden>
+          <label class="field-row"><span>FRC 도면 프리셋</span><select id="frcPreset">
+            <option value="custom">직접 설계 · 범용</option>
+            <option value="andymark-am4960">AndyMark am-4960 · 14T HTD</option>
+            <option value="rev-45-1823">REV-45-1823 · 24T GT2</option>
+          </select></label>
+          <div class="frc-reference" id="frcReferenceNotice">직접 설계 모드 · 규격과 치수를 자유롭게 설정합니다.</div>
           <label class="field-row"><span>벨트 규격</span><select id="beltProfile">
             <optgroup label="GT 계열">
               <option value="GT2" data-pitch="2">GT2 / 2MGT · 2 mm</option>
@@ -89,6 +95,9 @@
               <option value="L" data-pitch="9.525">L · 9.525 mm</option>
               <option value="H" data-pitch="12.7">H · 12.7 mm</option>
             </optgroup>
+            <optgroup label="로보틱스 계열">
+              <option value="RT25" data-pitch="6.35">RT25 · 6.35 mm (#25 호환 피치)</option>
+            </optgroup>
           </select></label>
           <div class="segmented calc-mode" role="group" aria-label="벨트 계산 방향">
             <button class="active" data-belt-mode="center">잇수·축간거리</button>
@@ -99,16 +108,17 @@
               <label><span>구동 풀리</span><span class="input-unit"><input id="pulley1" type="number" min="10" max="200" step="1" value="20"><b>T</b></span></label>
               <label><span>종동 풀리</span><span class="input-unit"><input id="pulley2" type="number" min="10" max="300" step="1" value="40"><b>T</b></span></label>
             </div>
-            <label class="field-row"><span>목표 축간거리</span><span class="input-unit"><input id="beltCenter" type="number" min="10" max="1000" step="0.1" value="80"><b>mm</b></span></label>
+            <label class="field-row"><span>목표 축간거리</span><span class="input-unit"><input id="beltCenter" type="number" min="10" max="5000" step="0.1" value="80"><b>mm</b></span></label>
           </div>
           <div id="lengthModeControls" hidden>
-            <label class="field-row"><span>보유 벨트 피치 길이</span><span class="input-unit"><input id="beltLength" type="number" min="40" max="5000" step="1" value="300"><b>mm</b></span></label>
+            <label class="field-row"><span>보유 벨트 피치 길이</span><span class="input-unit"><input id="beltLength" type="number" min="40" max="20000" step="1" value="300"><b>mm</b></span></label>
             <div class="two-col">
               <label><span>목표 지름 1</span><span class="input-unit"><input id="targetD1" type="number" min="5" max="500" step="0.1" value="13"><b>mm</b></span></label>
               <label><span>목표 지름 2</span><span class="input-unit"><input id="targetD2" type="number" min="5" max="500" step="0.1" value="26"><b>mm</b></span></label>
             </div>
           </div>
           <label class="field-row"><span>벨트 폭</span><span class="input-unit"><input id="beltWidth" type="number" min="3" max="100" step="1" value="6"><b>mm</b></span></label>
+          <div class="pulley-limit" id="pulleyMinNotice">현재 조건 최소 풀리 계산 중…</div>
           <div class="belt-result-mini"><span>권장 벨트</span><strong id="beltRecommendation">100T · 200 mm</strong><small id="beltCenterResult">실제 축간거리 68.6 mm</small></div>
         </div>
       </section>
@@ -230,13 +240,13 @@
   <dialog id="guideDialog">
     <button class="dialog-close" aria-label="닫기">×</button>
     <span class="eyebrow">QUICK GUIDE</span>
-    <h2>정밀 기어를 만드는 세 단계</h2>
+    <h2>FRC 대체부품부터 범용 기어까지</h2>
     <div class="guide-cards">
-      <article><b>01</b><h3>형상을 정합니다</h3><p>스퍼·내접·랙·풀리를 고르고 잇수·모듈·압력각을 입력하세요. 내접과 랙은 맞물림 피니언을 함께 설정합니다.</p></article>
+      <article><b>01</b><h3>FRC 기준을 선택합니다</h3><p>구하기 어려운 AndyMark·REV 부품은 도면 프리셋으로 시작하세요. 범용 설계는 직접 입력으로 전환할 수 있습니다.</p></article>
       <article><b>02</b><h3>축 결합을 정합니다</h3><p>원형·외접 6각·키자리 중에서 선택하고 제작 공차에 맞춰 백래시를 조정하세요.</p></article>
       <article><b>03</b><h3>검증하고 저장합니다</h3><p>3D 모델은 드래그해 모든 방향에서 확인하세요. 2D 가공은 SVG/DXF, 적층 제조는 STL/3MF를 사용합니다.</p></article>
     </div>
-    <p class="guide-foot">스퍼기어는 표준 전깊이 인벌류트 기반입니다. 내접기어와 타이밍 풀리의 BETA 치형은 시제품으로 맞물림을 확인하세요. 고하중·안전 핵심 부품은 전문 엔지니어의 강도·간섭 검토가 필요합니다.</p>
+    <p class="guide-foot">스퍼기어는 표준 전깊이 인벌류트 기반입니다. 타이밍 풀리의 양면 플랜지 비율은 AndyMark·REV Robotics 제품 도면을 참고한 범용 모델이며, 내접기어와 타이밍 풀리의 BETA 치형은 시제품으로 맞물림을 확인하세요. 고하중·안전 핵심 부품은 전문 엔지니어의 강도·간섭 검토가 필요합니다.</p>
   </dialog>
   <script src="app.js"></script>
 </body>
