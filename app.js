@@ -942,6 +942,8 @@
       const selectedReference=frcPresets[state.frcPreset];
       const referenceApplied=Boolean(matchingFrcPreset(b.z1,b.pitch)||matchingFrcPreset(b.z2,b.pitch));
       const centerText=Number.isFinite(b.center)?fmt(b.center):'—';
+      const centerDelta=Number.isFinite(b.center)?b.center-state.beltCenter:NaN;
+      const centerDeltaText=Number.isFinite(centerDelta)?`${centerDelta>=0?'+':''}${fmt(centerDelta)}`:'—';
       $('metricLabel1').textContent='풀리 1 피치지름'; $('pitchDiameter').textContent=fmt(b.d1); $('metricUnit1').textContent=`mm · ${b.z1}T`;
       $('metricLabel2').textContent='풀리 2 피치지름'; $('outsideDiameter').textContent=fmt(b.d2); $('metricUnit2').textContent=`mm · ${b.z2}T`;
       $('metricLabel3').textContent='권장 벨트'; $('baseDiameter').textContent=`${b.beltTeeth}T`; $('metricUnit3').textContent=`${fmt(b.length)} mm`;
@@ -954,7 +956,10 @@
       $('specLabel3').textContent=state.beltMode==='center'?'요청 축간거리':'입력 벨트 길이'; $('dedendum').textContent=`${fmt(state.beltMode==='center'?state.beltCenter:state.beltLength)} mm`;
       $('specLabel4').textContent='플랜지 포함 폭'; $('wholeDepth').textContent=`${fmt(flange.totalWidth)} mm`;
       $('beltRecommendation').textContent=`${b.beltTeeth}T · ${fmt(b.length)} mm`;
-      $('beltCenterResult').textContent=`풀리 ${b.z1}T / ${b.z2}T · ${flangeModeNames[flange.mode]} · 축간거리 ${centerText} mm`;
+      $('beltCenterResult').textContent=state.beltMode==='center'
+        ? `풀리 ${b.z1}T / ${b.z2}T · 요청 ${fmt(state.beltCenter)} → 실제 ${centerText} mm`
+        : `풀리 ${b.z1}T / ${b.z2}T · ${flangeModeNames[flange.mode]} · 축간거리 ${centerText} mm`;
+      $('centerInputNotice').innerHTML=`입력 <strong>${fmt(state.beltCenter)} mm</strong> → ${b.beltTeeth}T 벨트 적용 시 실제 <strong>${centerText} mm</strong> · 차이 ${centerDeltaText} mm`;
       $('pulleyMinNotice').textContent=`현재 조건 최소 ${limit.minTeeth}T · 피치지름 ${fmt(limit.minPitchDiameter)} mm · 축간거리 ${fmt(pairLimit.minCenter)} mm · 벨트 ${fmt(pairLimit.minBeltLength)} mm`;
       $('frcReferenceNotice').textContent=referenceApplied
         ? `${selectedReference.label} 도면 기준 적용 · ${selectedReference.flangeDiameter?`플랜지 Ø${fmt(selectedReference.flangeDiameter)} mm · `:'무플랜지 · '}전체 폭 ${fmt(selectedReference.totalWidth)} mm`
@@ -1104,10 +1109,11 @@
   bindMirror('rpm', 'rpmRange');
   ['pressure','pairEnabled','beltProfile'].forEach(id => $(id).addEventListener('input', () => readInputs()));
   ['bore','boreAllowance','keyWidth','keyDepth','ringRim','ringPinionTeeth','rackBase','rackPinionTeeth','thickness','pulley1','pulley2','beltCenter','beltLength','targetD1','targetD2','beltWidth'].forEach(id => {
-    $(id).addEventListener('input', () => readInputs(id));
+    $(id).addEventListener('input', () => { if(id!=='beltCenter') readInputs(id); });
     $(id).addEventListener('change', () => { readInputs(); normalizeNumberInput(id); });
     $(id).addEventListener('keydown', commitNumberOnEnter);
   });
+  document.querySelectorAll('input[type="number"]').forEach(input=>input.addEventListener('focus',()=>input.select()));
   $('frcPreset').addEventListener('change',()=>{
     applyFrcPreset($('frcPreset').value);
     const preset=frcPresets[state.frcPreset];

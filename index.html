@@ -117,7 +117,8 @@
               <label><span>구동 풀리</span><span class="input-unit"><input id="pulley1" type="number" min="10" max="200" step="1" value="20"><b>T</b></span></label>
               <label><span>종동 풀리</span><span class="input-unit"><input id="pulley2" type="number" min="10" max="300" step="1" value="40"><b>T</b></span></label>
             </div>
-            <label class="field-row"><span>목표 축간거리</span><span class="input-unit"><input id="beltCenter" type="number" min="10" max="5000" step="0.1" value="80"><b>mm</b></span></label>
+            <label class="field-row"><span>목표 축간거리</span><span class="input-unit"><input id="beltCenter" type="number" inputmode="decimal" min="10" max="5000" step="0.1" value="80"><b>mm</b></span></label>
+            <div class="center-input-note" id="centerInputNotice">값을 입력한 뒤 Enter 또는 Tab으로 계산합니다.</div>
           </div>
           <div id="lengthModeControls" hidden>
             <label class="field-row"><span>보유 벨트 피치 길이</span><span class="input-unit"><input id="beltLength" type="number" min="40" max="20000" step="1" value="300"><b>mm</b></span></label>
