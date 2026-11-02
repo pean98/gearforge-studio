@@ -30,6 +30,12 @@
         <div><span class="eyebrow">FRC FABRICATION</span><h1>동력부품 파라미터</h1></div>
         <span class="status-dot">LIVE</span>
       </div>
+      <button class="quick-guide-button" data-action="guide">
+        <span class="quick-guide-icon">?</span>
+        <span><strong>처음 사용하시나요?</strong><small>설계부터 파일 저장까지 4단계 안내</small></span>
+        <i>›</i>
+      </button>
+      <p class="number-input-tip"><b>숫자 입력:</b> 값을 입력한 뒤 <kbd>Enter</kbd> 또는 <kbd>Tab</kbd>으로 확정하세요.</p>
 
       <section class="control-section">
         <div class="section-title"><span>01</span> 기본 형상</div>
@@ -251,13 +257,25 @@
   <dialog id="guideDialog">
     <button class="dialog-close" aria-label="닫기">×</button>
     <span class="eyebrow">QUICK GUIDE</span>
-    <h2>FRC 대체부품부터 범용 기어까지</h2>
+    <h2>GearForge 사용 방법</h2>
+    <p class="guide-intro">FRC 대체 부품은 공식 도면 프리셋에서 시작하고, 범용 부품은 직접 치수를 입력하세요. 모든 계산과 파일 생성은 브라우저 안에서 처리됩니다.</p>
     <div class="guide-cards">
-      <article><b>01</b><h3>FRC 기준을 선택합니다</h3><p>구하기 어려운 AndyMark·REV 부품은 도면 프리셋으로 시작하세요. 범용 설계는 직접 입력으로 전환할 수 있습니다.</p></article>
-      <article><b>02</b><h3>축 결합을 정합니다</h3><p>원형·외접 6각·키자리 중에서 선택하고 제작 공차에 맞춰 백래시를 조정하세요.</p></article>
-      <article><b>03</b><h3>검증하고 저장합니다</h3><p>3D 모델은 드래그해 모든 방향에서 확인하세요. 2D 가공은 SVG/DXF, 적층 제조는 STL/3MF를 사용합니다.</p></article>
+      <article><b>01</b><h3>부품 유형 선택</h3><p>스퍼·내접·랙·벨트/풀리 중 하나를 선택합니다. 내접기어와 랙에는 맞물리는 피니언이 함께 표시됩니다.</p></article>
+      <article><b>02</b><h3>기준값 입력</h3><p>FRC 풀리는 AndyMark·REV 프리셋을 고르세요. 숫자는 전체 값을 입력한 뒤 Enter 또는 Tab으로 확정합니다.</p></article>
+      <article><b>03</b><h3>제작 조건 설정</h3><p>원형·외접 6각·키자리와 두께를 정합니다. 3D 프린팅은 보어 가공 보정값을 시험 출력에 맞게 조절하세요.</p></article>
+      <article><b>04</b><h3>검증 후 저장</h3><p>경고와 맞물림 결과를 확인하고 3D 모델을 드래그해 검사합니다. 필요한 형식을 선택해 저장하세요.</p></article>
     </div>
-    <p class="guide-foot">FRC 프리셋은 공식 제품 페이지·도면의 명목 치수를 기록하고 출처 링크를 제공합니다. 보어 가공 보정은 출력 환경에 맞춰 조절하세요. 내접기어와 타이밍 풀리의 BETA 치형은 시제품으로 맞물림을 확인하고, 고하중·안전 핵심 부품은 전문 엔지니어의 강도·간섭 검토가 필요합니다.</p>
+    <div class="guide-workflows">
+      <section><h3>기어·랙 설계</h3><ol><li>모듈과 압력각을 동일하게 맞춥니다.</li><li>원동·종동 잇수 또는 피니언 잇수를 입력합니다.</li><li>중심거리와 간섭 경고를 확인합니다.</li></ol></section>
+      <section><h3>벨트·풀리 설계</h3><ol><li>벨트 규격과 두 풀리 잇수를 정합니다.</li><li>축간거리 또는 보유 벨트 길이 기준을 선택합니다.</li><li>플랜지 방식과 권장 벨트 결과를 확인합니다.</li></ol></section>
+    </div>
+    <div class="guide-formats" aria-label="파일 형식 안내">
+      <div><b>SVG</b><span>레이저·CNC용 1:1 벡터</span></div>
+      <div><b>DXF</b><span>CAD·CAM용 R12 도면</span></div>
+      <div><b>STL</b><span>범용 3D 프린팅 메시</span></div>
+      <div><b>3MF</b><span>mm 단위를 포함한 3D 파일</span></div>
+    </div>
+    <p class="guide-foot"><strong>제작 전 확인:</strong> FRC 프리셋은 공식 제품 페이지·도면의 명목 치수를 기록한 출발점입니다. 내접기어와 타이밍 풀리의 BETA 치형은 반드시 소형 시제품으로 맞물림과 보어 공차를 확인하세요. 고하중·안전 핵심 부품은 전문 엔지니어의 검토가 필요합니다.</p>
   </dialog>
   <script src="app.js"></script>
 </body>

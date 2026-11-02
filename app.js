@@ -1019,7 +1019,7 @@
     validate();
   }
 
-  function readInputs() {
+  function readInputs(preserveId = null) {
     state.teeth = clamp(parseInt($('teeth').value) || 8, 8, 120);
     state.module = clamp(parseFloat($('module').value) || .2, .2, 10);
     state.pressure = parseFloat($('pressure').value);
@@ -1052,11 +1052,15 @@
     state.beltLength = clamp(parseFloat($('beltLength').value)||pairLimit.minBeltLength,pairLimit.minBeltLength,20000);
     state.beltWidth = clamp(parseFloat($('beltWidth').value)||3,3,100);
     $('pulley1').min=$('pulley2').min=String(pulleyLimit.minTeeth);
-    $('pulley1').value=state.pulley1; $('pulley2').value=state.pulley2;
+    if(preserveId!=='pulley1') $('pulley1').value=state.pulley1;
+    if(preserveId!=='pulley2') $('pulley2').value=state.pulley2;
     $('targetD1').min=$('targetD2').min=fmt(pulleyLimit.minPitchDiameter,2);
-    $('targetD1').value=fmt(state.targetD1,2); $('targetD2').value=fmt(state.targetD2,2);
-    $('beltCenter').min=fmt(pairLimit.minCenter,2); $('beltCenter').value=fmt(state.beltCenter,2);
-    $('beltLength').min=fmt(pairLimit.minBeltLength,2); $('beltLength').value=fmt(state.beltLength,2);
+    if(preserveId!=='targetD1') $('targetD1').value=fmt(state.targetD1,2);
+    if(preserveId!=='targetD2') $('targetD2').value=fmt(state.targetD2,2);
+    $('beltCenter').min=fmt(pairLimit.minCenter,2);
+    if(preserveId!=='beltCenter') $('beltCenter').value=fmt(state.beltCenter,2);
+    $('beltLength').min=fmt(pairLimit.minBeltLength,2);
+    if(preserveId!=='beltLength') $('beltLength').value=fmt(state.beltLength,2);
     const rpmValue = parseFloat($('rpm').value);
     state.rpm = clamp(Number.isFinite(rpmValue) ? rpmValue : 0, 0, 240);
     if (state.gearType !== 'pulley') state.typeTeeth[state.gearType] = state.teeth;
@@ -1064,8 +1068,33 @@
   }
 
   function bindMirror(a, b) {
-    $(a).addEventListener('input', () => { $(b).value = $(a).value; readInputs(); });
+    $(a).addEventListener('input', () => { $(b).value = $(a).value; readInputs(a); });
+    $(a).addEventListener('change', () => { readInputs(); normalizeNumberInput(a); });
+    $(a).addEventListener('keydown', commitNumberOnEnter);
     $(b).addEventListener('input', () => { $(a).value = $(b).value; readInputs(); });
+  }
+
+  const numberStateReaders = {
+    teeth:()=>state.teeth, module:()=>state.module, backlash:()=>state.backlash, teeth2:()=>state.teeth2, rpm:()=>state.rpm,
+    bore:()=>state.bore, boreAllowance:()=>state.boreAllowance, keyWidth:()=>state.keyWidth, keyDepth:()=>state.keyDepth,
+    ringRim:()=>state.ringRim, ringPinionTeeth:()=>state.ringPinionTeeth, rackBase:()=>state.rackBase,
+    rackPinionTeeth:()=>state.rackPinionTeeth, thickness:()=>state.thickness, pulley1:()=>state.pulley1,
+    pulley2:()=>state.pulley2, beltCenter:()=>state.beltCenter, beltLength:()=>state.beltLength,
+    targetD1:()=>state.targetD1, targetD2:()=>state.targetD2, beltWidth:()=>state.beltWidth
+  };
+  const mirrorFor={teeth:'teethRange',module:'moduleRange',backlash:'backlashRange',teeth2:'teeth2Range',rpm:'rpmRange'};
+  function normalizeNumberInput(id) {
+    const value=numberStateReaders[id]?.();
+    if(!Number.isFinite(value)) return;
+    const clean=String(Number(value.toFixed(3)));
+    $(id).value=clean;
+    if(mirrorFor[id]) $(mirrorFor[id]).value=clean;
+  }
+  function commitNumberOnEnter(event) {
+    if(event.key==='Enter'){
+      event.preventDefault();
+      event.currentTarget.blur();
+    }
   }
 
   bindMirror('teeth', 'teethRange');
@@ -1073,7 +1102,12 @@
   bindMirror('backlash', 'backlashRange');
   bindMirror('teeth2', 'teeth2Range');
   bindMirror('rpm', 'rpmRange');
-  ['pressure','bore','boreAllowance','keyWidth','keyDepth','ringRim','ringPinionTeeth','rackBase','rackPinionTeeth','thickness','pairEnabled','beltProfile','pulley1','pulley2','beltCenter','beltLength','targetD1','targetD2','beltWidth'].forEach(id => $(id).addEventListener('input', readInputs));
+  ['pressure','pairEnabled','beltProfile'].forEach(id => $(id).addEventListener('input', () => readInputs()));
+  ['bore','boreAllowance','keyWidth','keyDepth','ringRim','ringPinionTeeth','rackBase','rackPinionTeeth','thickness','pulley1','pulley2','beltCenter','beltLength','targetD1','targetD2','beltWidth'].forEach(id => {
+    $(id).addEventListener('input', () => readInputs(id));
+    $(id).addEventListener('change', () => { readInputs(); normalizeNumberInput(id); });
+    $(id).addEventListener('keydown', commitNumberOnEnter);
+  });
   $('frcPreset').addEventListener('change',()=>{
     applyFrcPreset($('frcPreset').value);
     const preset=frcPresets[state.frcPreset];
@@ -1402,7 +1436,7 @@
   });
 
   const guide = $('guideDialog');
-  document.querySelector('[data-action="guide"]').addEventListener('click', () => guide.showModal());
+  document.querySelectorAll('[data-action="guide"]').forEach(button=>button.addEventListener('click', () => guide.showModal()));
   guide.querySelector('.dialog-close').addEventListener('click', () => guide.close());
   guide.addEventListener('click', e => { if (e.target === guide) guide.close(); });
 
