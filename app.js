@@ -246,6 +246,18 @@
     return {outer:pulleyPolygon(teeth,pitch,rotation), hole:rotateShape(holePolygon(160),rotation), pitchRadius:teeth*pitch/(Math.PI*2)};
   }
 
+  function pulleyFlangeSpec(teeth, pitch) {
+    const pitchRadius=teeth*pitch/(Math.PI*2);
+    const flangeHeight=Math.max(1,pitch*.45);
+    const flangeThickness=Math.max(.8,pitch*.35);
+    return {
+      flangeRadius:pitchRadius+flangeHeight,
+      flangeHeight,
+      flangeThickness,
+      totalWidth:state.thickness+flangeThickness*2
+    };
+  }
+
   function currentGeometry() {
     if (state.gearType === 'ring') return ringGeometry(0);
     if (state.gearType === 'rack') return rackGeometry(0);
@@ -333,10 +345,10 @@
     return triangles;
   }
 
-  function buildMesh(geometry = currentGeometry()) {
+  function buildMesh(geometry = currentGeometry(), thickness = state.thickness) {
     const outer = geometry.outer;
     const hole = geometry.hole;
-    const h = state.thickness / 2;
+    const h = thickness / 2;
     const n = outer.length;
     const vertices = [];
     const triangles = [];
@@ -373,6 +385,34 @@
       triangles.push([ib + i, it + j, ib + j], [ib + i, it + i, it + j]);
     }
     return { vertices, triangles };
+  }
+
+  function mergeMeshes(parts) {
+    const vertices=[],triangles=[];
+    for(const part of parts){
+      const offset=vertices.length;
+      vertices.push(...part.vertices);
+      triangles.push(...part.triangles.map(tri=>tri.map(index=>index+offset)));
+    }
+    return {vertices,triangles};
+  }
+
+  function moveMeshZ(mesh, z) {
+    return {vertices:mesh.vertices.map(v=>[v[0],v[1],v[2]+z]),triangles:mesh.triangles};
+  }
+
+  function pulleyMesh(teeth, pitch, rotation = 0) {
+    const spec=pulleyFlangeSpec(teeth,pitch);
+    const flangeGeometry={
+      outer:circlePolygon(spec.flangeRadius,Math.max(180,teeth*10),rotation),
+      hole:rotateShape(holePolygon(160),rotation),
+      pitchRadius:teeth*pitch/(Math.PI*2)
+    };
+    const body=buildMesh(pulleyGeometry(teeth,pitch,rotation),state.thickness);
+    const flangeOffset=(state.thickness+spec.flangeThickness)/2;
+    const front=moveMeshZ(buildMesh(flangeGeometry,spec.flangeThickness),flangeOffset);
+    const back=moveMeshZ(buildMesh(flangeGeometry,spec.flangeThickness),-flangeOffset);
+    return mergeMeshes([body,front,back]);
   }
 
   const meshCache = new Map();
@@ -510,9 +550,10 @@
     }
     if (state.gearType === 'pulley') {
       const b=beltCalc(), r1=b.d1/2, r2=b.d2/2, c=Number.isFinite(b.center)?b.center:state.beltCenter;
-      const maxR=Math.max(r1,r2)+b.pitch;
-      const scale=Math.min((w-100)/(c+r1+r2+b.pitch*4),(h-100)/(maxR*2.7))*state.zoom;
-      const x1=50+(r1+b.pitch)*scale, x2=x1+c*scale, y=h/2;
+      const flange1=pulleyFlangeSpec(b.z1,b.pitch), flange2=pulleyFlangeSpec(b.z2,b.pitch);
+      const maxR=Math.max(flange1.flangeRadius,flange2.flangeRadius);
+      const scale=Math.min((w-100)/(c+flange1.flangeRadius+flange2.flangeRadius+b.pitch*2),(h-100)/(maxR*2.7))*state.zoom;
+      const x1=50+flange1.flangeRadius*scale, x2=x1+c*scale, y=h/2;
       const traceBelt=()=>{
         ctx.beginPath();
         ctx.moveTo(x1,y-r1*scale); ctx.lineTo(x2,y-r2*scale);
@@ -531,6 +572,8 @@
       ctx.beginPath(); ctx.moveTo(arrowX+7,bottomY); ctx.lineTo(arrowX-4,bottomY-4); ctx.lineTo(arrowX-4,bottomY+4); ctx.closePath(); ctx.fill(); ctx.restore();
       const a1=state.angle, a2=state.angle*b.z1/b.z2;
       const hole=holePolygon(96);
+      drawGear2D(circlePolygon(flange2.flangeRadius,Math.max(180,b.z2*8),a2),rotateShape(hole,a2),x2,y,scale,r2,'rgba(58,127,137,.09)','#3a7f89','#3a7f89');
+      drawGear2D(circlePolygon(flange1.flangeRadius,Math.max(180,b.z1*8),a1),rotateShape(hole,a1),x1,y,scale,r1,'rgba(232,155,36,.11)','#b66f13','#b66f13');
       drawGear2D(pulleyPolygon(b.z2,b.pitch,a2),rotateShape(hole,a2),x2,y,scale,r2,'rgba(58,127,137,.16)','#3a7f89','#3a7f89');
       drawGear2D(pulleyPolygon(b.z1,b.pitch,a1),rotateShape(hole,a1),x1,y,scale,r1,'rgba(232,155,36,.22)','#b66f13','#b66f13');
       drawCenterMark(x1,y); drawCenterMark(x2,y);
@@ -611,8 +654,8 @@
     if (state.gearType === 'pulley') {
       const b=beltCalc(), center=Number.isFinite(b.center)?b.center:state.beltCenter;
       const pulleyItem=(teeth,angle,x,material)=>({
-        key:`pulley|${teeth}|${b.pitch}|${profile}`,
-        create:()=>buildMesh(pulleyGeometry(teeth,b.pitch,0)),
+        key:`pulley-flanged|${teeth}|${b.pitch}|${profile}`,
+        create:()=>pulleyMesh(teeth,b.pitch,0),
         angle,x,y:0,material
       });
       return [
@@ -634,11 +677,16 @@
     }
     const mesh={vertices,triangles};
     const xs=mesh.vertices.map(v=>v[0]), ys=mesh.vertices.map(v=>v[1]);
-    const spanX=Math.max(...xs)-Math.min(...xs), spanY=Math.max(...ys)-Math.min(...ys);
-    const scale = Math.min((rect.width - 100) / Math.max(spanX*1.35,1), (rect.height - 90) / Math.max(spanY*1.35,state.thickness*2,1)) * state.zoom;
+    const minX=Math.min(...xs),maxX=Math.max(...xs),minY=Math.min(...ys),maxY=Math.max(...ys);
+    const sceneX=(minX+maxX)/2, sceneY=(minY+maxY)/2;
     const yaw = state.viewYaw;
     const pitch = state.viewPitch;
-    const projected = mesh.vertices.map(v => project3D(v, scale, rect.width / 2, rect.height / 2 + 8, yaw, pitch));
+    const rawProjected=mesh.vertices.map(v=>project3D([v[0]-sceneX,v[1]-sceneY,v[2]],1,0,0,yaw,pitch));
+    const rawX=rawProjected.map(p=>p.x),rawY=rawProjected.map(p=>p.y);
+    const rawMinX=Math.min(...rawX),rawMaxX=Math.max(...rawX),rawMinY=Math.min(...rawY),rawMaxY=Math.max(...rawY);
+    const rawCenterX=(rawMinX+rawMaxX)/2,rawCenterY=(rawMinY+rawMaxY)/2;
+    const scale=Math.min((rect.width-100)/Math.max(rawMaxX-rawMinX,1),(rect.height-90)/Math.max(rawMaxY-rawMinY,1))*state.zoom;
+    const projected=rawProjected.map(p=>({x:rect.width/2+(p.x-rawCenterX)*scale,y:rect.height/2+8+(p.y-rawCenterY)*scale,z:p.z}));
     const light = [-.4, -.5, .75];
     const faces = mesh.triangles.map((tri, index) => {
       const a = mesh.vertices[tri[0]], b = mesh.vertices[tri[1]], c = mesh.vertices[tri[2]];
@@ -699,6 +747,9 @@
       if (!Number.isFinite(b.center)) {
         warning.textContent='선택한 벨트가 두 풀리를 감싸기에는 너무 짧습니다.';
         warning.hidden=false;
+      } else if (state.thickness < state.beltWidth + .5) {
+        warning.textContent=`풀리 몸통 폭이 좁습니다. ${fmt(state.beltWidth)} mm 벨트에는 ${fmt(state.beltWidth+.5)} mm 이상을 권장합니다.`;
+        warning.hidden=false;
       } else if (b.teethInMesh < 6) {
         warning.textContent=`작은 풀리 맞물림이 ${fmt(b.teethInMesh,1)}개입니다. 6개 이상을 권장합니다.`;
         warning.hidden=false;
@@ -750,6 +801,7 @@
     $('exportDriverLabel').textContent=isRing?'내접기어':isRack?'랙':'원동기어';
     $('exportDrivenLabel').textContent=(isRing||isRack)?'피니언':'종동기어';
     $('exportBothLabel').textContent=(isRing||isRack)?'세트':'두 기어';
+    $('thicknessLabel').textContent=isPulley?'풀리 몸통 폭':'두께';
     $('legendPrimary').textContent=isRing?'내접기어':isRack?'랙':isPulley?'구동 풀리':'구동 기어';
     $('legendSecondary').textContent=(isRing||isRack)?'피니언':isPulley?'종동 풀리':'종동 기어';
     $('teethLabel').innerHTML=isRack?'랙 잇수 <em>z</em>':'잇수 <em>z₁</em>';
@@ -761,20 +813,21 @@
 
     if (isPulley) {
       const b=beltCalc();
+      const flange=pulleyFlangeSpec(b.z1,b.pitch);
       const centerText=Number.isFinite(b.center)?fmt(b.center):'—';
       $('metricLabel1').textContent='풀리 1 피치지름'; $('pitchDiameter').textContent=fmt(b.d1); $('metricUnit1').textContent=`mm · ${b.z1}T`;
       $('metricLabel2').textContent='풀리 2 피치지름'; $('outsideDiameter').textContent=fmt(b.d2); $('metricUnit2').textContent=`mm · ${b.z2}T`;
       $('metricLabel3').textContent='권장 벨트'; $('baseDiameter').textContent=`${b.beltTeeth}T`; $('metricUnit3').textContent=`${fmt(b.length)} mm`;
       $('metricLabel4').textContent='실제 축간거리'; $('centerDistance').textContent=centerText; $('metricUnit4').textContent='mm · C';
-      $('checkTitle').textContent='벨트 조합 계산 완료'; $('meshMessage').textContent=`${state.beltProfile} · 피치 ${fmt(b.pitch,1)} mm`;
+      $('checkTitle').textContent='벨트 조합 계산 완료'; $('meshMessage').textContent=`${state.beltProfile} · 양면 가이드 플랜지`;
       $('contactLabel').textContent='작은 풀리 맞물림'; $('contactRatio').textContent=`${fmt(b.teethInMesh,1)} T`;
       $('contactBar').style.width=`${clamp(b.teethInMesh/10*100,8,100)}%`; $('checkGuide').textContent='6개 이상 권장'; $('checkStatus').textContent=b.teethInMesh>=6?'양호':'검토 필요';
       $('specLabel1').textContent='벨트 피치'; $('circularPitch').textContent=`${fmt(b.pitch,1)} mm`;
       $('specLabel2').textContent='감속비'; $('addendum').textContent=`${fmt(b.ratio,3)} : 1`;
       $('specLabel3').textContent=state.beltMode==='center'?'요청 축간거리':'입력 벨트 길이'; $('dedendum').textContent=`${fmt(state.beltMode==='center'?state.beltCenter:state.beltLength)} mm`;
-      $('specLabel4').textContent='선정 피치 길이'; $('wholeDepth').textContent=`${fmt(b.length)} mm`;
+      $('specLabel4').textContent='플랜지 포함 폭'; $('wholeDepth').textContent=`${fmt(flange.totalWidth)} mm`;
       $('beltRecommendation').textContent=`${b.beltTeeth}T · ${fmt(b.length)} mm`;
-      $('beltCenterResult').textContent=`풀리 ${b.z1}T / ${b.z2}T · 실제 축간거리 ${centerText} mm`;
+      $('beltCenterResult').textContent=`풀리 ${b.z1}T / ${b.z2}T · 양면 플랜지 · 축간거리 ${centerText} mm`;
     } else if (isRing) {
       const pinion=params(state.ringPinionTeeth), innerRoot=p.rp+1.25*state.module, outer=innerRoot+state.ringRim;
       const center=p.rp-pinion.rp, difference=state.teeth-state.ringPinionTeeth;
@@ -820,9 +873,9 @@
     $('keywayControls').hidden = state.boreType !== 'keyway';
     document.querySelectorAll('[data-bore-type]').forEach(b => b.classList.toggle('active', b.dataset.boreType === state.boreType));
     $('viewModeLabel').textContent = state.view === '2d' ? 'TOP / 2D' : 'ISOMETRIC / 3D';
-    const typeNames={spur:'인벌류트 스퍼기어 · 20 points/flank',ring:`내접기어 + ${state.ringPinionTeeth}T 피니언 · BETA`,rack:`랙 + ${state.rackPinionTeeth}T 피니언`,pulley:`${state.beltProfile} 타이밍 풀리 · BETA`};
+    const typeNames={spur:'인벌류트 스퍼기어 · 20 points/flank',ring:`내접기어 + ${state.ringPinionTeeth}T 피니언 · BETA`,rack:`랙 + ${state.rackPinionTeeth}T 피니언`,pulley:`${state.beltProfile} 타이밍 풀리 · 양면 플랜지 · BETA`};
     const partCount=(isSpur&&state.pair)||isRing||isRack||isPulley?2:1;
-    $('geometryStatus').textContent = state.view === '2d' ? typeNames[state.gearType] : `${partCount}개 솔리드 · ${fmt(state.thickness,1)} mm extrusion`;
+    $('geometryStatus').textContent = state.view === '2d' ? typeNames[state.gearType] : isPulley?`${partCount}개 양면 플랜지 풀리 · 몸통 ${fmt(state.thickness,1)} mm`:`${partCount}개 솔리드 · ${fmt(state.thickness,1)} mm extrusion`;
     $('orbitHint').hidden = state.view !== '3d';
     $('viewport').classList.toggle('is-3d', state.view === '3d');
     validate();
@@ -996,6 +1049,15 @@
   }
 
   function exportItems() {
+    if (state.gearType === 'pulley') {
+      const b=beltCalc(),spec=pulleyFlangeSpec(b.z1,b.pitch);
+      return [{
+        name:'pulley',teeth:b.z1,x:0,y:0,
+        geometry:pulleyGeometry(b.z1,b.pitch,0),
+        mesh:pulleyMesh(b.z1,b.pitch,0),
+        guides:[circlePolygon(spec.flangeRadius,Math.max(180,b.z1*10))]
+      }];
+    }
     if (state.gearType === 'ring') {
       const ring={name:'ring',teeth:state.teeth,x:0,y:0,geometry:ringGeometry(0)};
       const pinionGeometry=spurGeometry(state.ringPinionTeeth,Math.PI/state.ringPinionTeeth);
@@ -1028,7 +1090,7 @@
   function exportMesh() {
     const vertices=[], triangles=[];
     for (const item of exportItems()) {
-      const mesh=buildMesh(item.geometry), offset=vertices.length;
+      const mesh=item.mesh||buildMesh(item.geometry), offset=vertices.length;
       vertices.push(...mesh.vertices.map(v=>[v[0]+item.x,v[1]+item.y,v[2]]));
       triangles.push(...mesh.triangles.map(t=>t.map(i=>i+offset)));
     }
@@ -1040,12 +1102,13 @@
     const placed=items.map(item=>({
       ...item,
       outer:movePoints(item.geometry.outer,item.x,item.y),
-      hole:movePoints(item.geometry.hole,item.x,item.y)
+      hole:movePoints(item.geometry.hole,item.x,item.y),
+      guides:(item.guides||[]).map(points=>movePoints(points,item.x,item.y))
     }));
-    const allPoints=placed.flatMap(item=>item.outer);
+    const allPoints=placed.flatMap(item=>[item.outer,...item.guides]).flat();
     const box=shapeBounds(allPoints), pad=state.gearType==='pulley'?state.beltPitch:state.module*2;
     const width=box.maxX-box.minX+pad*2, height=box.maxY-box.minY+pad*2;
-    const paths=placed.map(item=>`  <g id="${item.name}">\n    <path d="${svgPath(item.outer)}" fill="none" stroke="#000" stroke-width="0.1"/>${item.hole.length?`\n    <path d="${svgPath(item.hole)}" fill="none" stroke="#000" stroke-width="0.1"/>`:''}\n  </g>`).join('\n');
+    const paths=placed.map(item=>`  <g id="${item.name}">\n    <path d="${svgPath(item.outer)}" fill="none" stroke="#000" stroke-width="0.1"/>${item.hole.length?`\n    <path d="${svgPath(item.hole)}" fill="none" stroke="#000" stroke-width="0.1"/>`:''}${item.guides.map((points,index)=>`\n    <path id="flange-${index+1}" d="${svgPath(points)}" fill="none" stroke="#555" stroke-width="0.1"/>`).join('')}\n  </g>`).join('\n');
     const svg = `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${height}mm" viewBox="${box.minX-pad} ${-box.maxY-pad} ${width} ${height}">\n  <title>GearForge ${state.gearType}</title>\n${paths}\n</svg>`;
     download(new Blob([svg], {type:'image/svg+xml'}), fileName('svg'));
   }
@@ -1059,7 +1122,8 @@
   function exportDXF() {
     const entities=exportItems().map(item=>{
       const outer=movePoints(item.geometry.outer,item.x,item.y), hole=movePoints(item.geometry.hole,item.x,item.y), layer=item.name.toUpperCase();
-      return `${dxfPolyline(outer,`${layer}_PROFILE`)}${hole.length?dxfPolyline(hole,`${layer}_INNER`):''}`;
+      const guides=(item.guides||[]).map((points,index)=>dxfPolyline(movePoints(points,item.x,item.y),`${layer}_FLANGE_${index+1}`)).join('');
+      return `${dxfPolyline(outer,`${layer}_PROFILE`)}${hole.length?dxfPolyline(hole,`${layer}_INNER`):''}${guides}`;
     }).join('');
     const dxf = `0\nSECTION\n2\nHEADER\n9\n$ACADVER\n1\nAC1009\n9\n$INSUNITS\n70\n4\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities}0\nENDSEC\n0\nEOF\n`;
     download(new Blob([dxf], {type:'application/dxf'}), fileName('dxf'));
@@ -1113,7 +1177,8 @@
 
   function export3MF() {
     const mesh = exportMesh();
-    const verts = mesh.vertices.map(v => `<vertex x="${v[0].toFixed(6)}" y="${v[1].toFixed(6)}" z="${(v[2]+state.thickness/2).toFixed(6)}"/>`).join('');
+    const minZ=Math.min(...mesh.vertices.map(v=>v[2]));
+    const verts = mesh.vertices.map(v => `<vertex x="${v[0].toFixed(6)}" y="${v[1].toFixed(6)}" z="${(v[2]-minZ).toFixed(6)}"/>`).join('');
     const tris = mesh.triangles.map(t => `<triangle v1="${t[0]}" v2="${t[1]}" v3="${t[2]}"/>`).join('');
     const model = `<?xml version="1.0" encoding="UTF-8"?><model unit="millimeter" xml:lang="ko-KR" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02"><metadata name="Title">GearForge z${state.teeth} m${state.module}</metadata><resources><object id="1" type="model"><mesh><vertices>${verts}</vertices><triangles>${tris}</triangles></mesh></object></resources><build><item objectid="1"/></build></model>`;
     const contentTypes = `<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>`;
@@ -1164,7 +1229,7 @@
     const boreNames={circle:'원형',hex:'외접 6각',keyway:'키자리'};
     const keySpec=state.boreType==='keyway'?`\n키 폭/깊이: ${fmt(state.keyWidth)} / ${fmt(state.keyDepth)} mm`:'';
     let text;
-    if(state.gearType==='pulley') { const b=beltCalc(); text=`GearForge 벨트·풀리 사양\n규격: ${state.beltProfile}\n피치: ${b.pitch} mm\n풀리: ${b.z1}T / ${b.z2}T\n피치지름: ${fmt(b.d1)} / ${fmt(b.d2)} mm\n벨트: ${b.beltTeeth}T · ${fmt(b.length)} mm\n실제 축간거리: ${fmt(b.center)} mm\n맞물림 잇수: ${fmt(b.teethInMesh,1)}T`; }
+    if(state.gearType==='pulley') { const b=beltCalc(),f=pulleyFlangeSpec(b.z1,b.pitch); text=`GearForge 벨트·풀리 사양\n규격: ${state.beltProfile}\n피치: ${b.pitch} mm\n풀리: ${b.z1}T / ${b.z2}T\n피치지름: ${fmt(b.d1)} / ${fmt(b.d2)} mm\n벨트: ${b.beltTeeth}T · ${fmt(b.length)} mm\n실제 축간거리: ${fmt(b.center)} mm\n맞물림 잇수: ${fmt(b.teethInMesh,1)}T\n풀리 구조: 양면 가이드 플랜지\n몸통 폭: ${fmt(state.thickness)} mm\n플랜지 포함 폭: ${fmt(f.totalWidth)} mm`; }
     else if(state.gearType==='ring') { const pp=params(state.ringPinionTeeth); text=`GearForge 내접기어 세트\n내접기어: ${state.teeth}T\n피니언: ${state.ringPinionTeeth}T\n모듈/압력각: ${state.module} mm / ${state.pressure}°\n중심거리: ${fmt(p.rp-pp.rp)} mm\n감속비: ${fmt(state.teeth/state.ringPinionTeeth,3)} : 1\n피니언 구멍: ${boreNames[state.boreType]} · ${fmt(state.bore)} mm${keySpec}\n두께: ${fmt(state.thickness)} mm`; }
     else if(state.gearType==='rack') { const pp=params(state.rackPinionTeeth), pitchLine=1.25*state.module+state.rackBase; text=`GearForge 랙·피니언 세트\n랙: ${state.teeth}T\n피니언: ${state.rackPinionTeeth}T\n모듈/압력각: ${state.module} mm / ${state.pressure}°\n조립거리(바닥→축): ${fmt(pitchLine+pp.rp)} mm\n1회전 이동량: ${fmt(Math.PI*state.module*state.rackPinionTeeth)} mm\n피니언 구멍: ${boreNames[state.boreType]} · ${fmt(state.bore)} mm${keySpec}\n두께: ${fmt(state.thickness)} mm`; }
     else text=`GearForge ${state.gearType} 설계 사양\n잇수: ${state.teeth}\n모듈: ${state.module} mm\n압력각: ${state.pressure}°\n피치원: ${fmt(p.rp*2)} mm\n중심구멍: ${boreNames[state.boreType]} · ${fmt(state.bore)} mm${keySpec}\n두께: ${fmt(state.thickness)} mm\n백래시: ${fmt(state.backlash)} mm${state.gearType==='spur'&&state.pair?`\n상대기어: ${state.teeth2}T\n중심거리: ${fmt(p.rp+p2.rp)} mm`:''}`;
