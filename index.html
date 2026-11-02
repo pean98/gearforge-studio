@@ -66,9 +66,12 @@
           <label class="field-row"><span>FRC 도면 프리셋</span><select id="frcPreset">
             <option value="custom">직접 설계 · 범용</option>
             <option value="andymark-am4960">AndyMark am-4960 · 14T HTD</option>
+            <option value="andymark-am3403">AndyMark am-3403 · 24T HTD</option>
+            <option value="andymark-am4626">AndyMark am-4626 · 24T 알루미늄</option>
+            <option value="rev-41-1668">REV-41-1668 · 12T GT2</option>
             <option value="rev-45-1823">REV-45-1823 · 24T GT2</option>
           </select></label>
-          <div class="frc-reference" id="frcReferenceNotice">직접 설계 모드 · 규격과 치수를 자유롭게 설정합니다.</div>
+          <div class="frc-reference"><span id="frcReferenceNotice">직접 설계 모드 · 규격과 치수를 자유롭게 설정합니다.</span><a id="frcSourceLink" href="#" target="_blank" rel="noreferrer" hidden>공식 도면 ↗</a></div>
           <label class="field-row"><span>벨트 규격</span><select id="beltProfile">
             <optgroup label="GT 계열">
               <option value="GT2" data-pitch="2">GT2 / 2MGT · 2 mm</option>
@@ -118,6 +121,12 @@
             </div>
           </div>
           <label class="field-row"><span>벨트 폭</span><span class="input-unit"><input id="beltWidth" type="number" min="3" max="100" step="1" value="6"><b>mm</b></span></label>
+          <div class="bore-type-label">가이드 플랜지</div>
+          <div class="segmented flange-segmented" id="flangeModeControls" role="group" aria-label="가이드 플랜지 방식">
+            <button class="active" data-flange-mode="double">양면</button>
+            <button data-flange-mode="single">단면</button>
+            <button data-flange-mode="none">없음</button>
+          </div>
           <div class="pulley-limit" id="pulleyMinNotice">현재 조건 최소 풀리 계산 중…</div>
           <div class="belt-result-mini"><span>권장 벨트</span><strong id="beltRecommendation">100T · 200 mm</strong><small id="beltCenterResult">실제 축간거리 68.6 mm</small></div>
         </div>
@@ -135,6 +144,8 @@
           <label><span id="boreLabel">구멍 지름</span><span class="input-unit"><input id="bore" type="number" min="0" max="60" step="0.1" value="8"><b>mm</b></span></label>
           <label><span id="thicknessLabel">두께</span><span class="input-unit"><input id="thickness" type="number" min="0.5" max="50" step="0.5" value="8"><b>mm</b></span></label>
         </div>
+        <label class="field-row"><span>보어 가공 보정 <em>+</em></span><span class="input-unit"><input id="boreAllowance" type="number" min="-1" max="2" step="0.05" value="0.2"><b>mm</b></span></label>
+        <div class="manufacturing-output" id="boreOutputNotice">출력 보어 8.20 mm · FDM 출력 후 실측 권장</div>
         <div class="keyway-controls" id="keywayControls" hidden>
           <label><span>키 폭</span><span class="input-unit"><input id="keyWidth" type="number" min="0.5" max="20" step="0.1" value="3"><b>mm</b></span></label>
           <label><span>키 깊이</span><span class="input-unit"><input id="keyDepth" type="number" min="0.2" max="10" step="0.1" value="1.8"><b>mm</b></span></label>
@@ -246,7 +257,7 @@
       <article><b>02</b><h3>축 결합을 정합니다</h3><p>원형·외접 6각·키자리 중에서 선택하고 제작 공차에 맞춰 백래시를 조정하세요.</p></article>
       <article><b>03</b><h3>검증하고 저장합니다</h3><p>3D 모델은 드래그해 모든 방향에서 확인하세요. 2D 가공은 SVG/DXF, 적층 제조는 STL/3MF를 사용합니다.</p></article>
     </div>
-    <p class="guide-foot">스퍼기어는 표준 전깊이 인벌류트 기반입니다. 타이밍 풀리의 양면 플랜지 비율은 AndyMark·REV Robotics 제품 도면을 참고한 범용 모델이며, 내접기어와 타이밍 풀리의 BETA 치형은 시제품으로 맞물림을 확인하세요. 고하중·안전 핵심 부품은 전문 엔지니어의 강도·간섭 검토가 필요합니다.</p>
+    <p class="guide-foot">FRC 프리셋은 공식 제품 페이지·도면의 명목 치수를 기록하고 출처 링크를 제공합니다. 보어 가공 보정은 출력 환경에 맞춰 조절하세요. 내접기어와 타이밍 풀리의 BETA 치형은 시제품으로 맞물림을 확인하고, 고하중·안전 핵심 부품은 전문 엔지니어의 강도·간섭 검토가 필요합니다.</p>
   </dialog>
   <script src="app.js"></script>
 </body>

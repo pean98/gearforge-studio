@@ -10,6 +10,7 @@
     module: 2,
     pressure: 20,
     bore: 8,
+    boreAllowance: 0.2,
     boreType: 'circle',
     keyWidth: 3,
     keyDepth: 1.8,
@@ -24,6 +25,7 @@
     pair: true,
     beltMode: 'center',
     frcPreset: 'custom',
+    flangeMode: 'double',
     beltProfile: 'GT2',
     beltPitch: 2,
     pulley1: 20,
@@ -56,14 +58,35 @@
     'andymark-am4960': {
       label:'AndyMark am-4960', profile:'HTD-5M', pitch:5, teeth:14,
       boreType:'hex', bore:9.525, beltWidth:9, bodyWidth:10.2,
-      flangeDiameter:23.876, flangeThickness:1.25, totalWidth:12.7
+      flangeDiameter:23.876, flangeThickness:1.25, totalWidth:12.7, flangeMode:'double',
+      sourceTitle:'AndyMark 제품 사양', sourceUrl:'https://andymark.com/products/14-tooth-0-375-in-hex-bore-htd-pulley'
+    },
+    'andymark-am3403': {
+      label:'AndyMark am-3403', profile:'HTD-5M', pitch:5, teeth:24,
+      boreType:'hex', bore:12.7, beltWidth:9, bodyWidth:9,
+      flangeDiameter:42, flangeThickness:2.5, totalWidth:14, flangeMode:'double',
+      sourceTitle:'AndyMark 제품 사양', sourceUrl:'https://andymark.com/products/24t-plastic-htd-pulleys?variant=44493442384044'
+    },
+    'andymark-am4626': {
+      label:'AndyMark am-4626', profile:'HTD-5M', pitch:5, teeth:24,
+      boreType:'hex', bore:12.7, beltWidth:15, bodyWidth:18,
+      flangeDiameter:41.402, flangeThickness:1.16, totalWidth:20.32, flangeMode:'double',
+      sourceTitle:'AndyMark 제품 사양', sourceUrl:'https://andymark.com/products/24-tooth-0-5-in-hex-bore-5-mm-htd-18-mm-wide-aluminum-pulley'
+    },
+    'rev-41-1668': {
+      label:'REV-41-1668', profile:'GT3-3M', pitch:3, teeth:12,
+      boreType:'hex', bore:5, beltWidth:9, bodyWidth:15,
+      flangeDiameter:null, flangeThickness:0, totalWidth:15, flangeMode:'none',
+      sourceTitle:'REV 공식 도면', sourceUrl:'https://www.revrobotics.com/content/docs/REV-41-1668-DR.pdf'
     },
     'rev-45-1823': {
       label:'REV-45-1823 / REV-41-1669', profile:'GT3-3M', pitch:3, teeth:24,
-      boreType:'hex', bore:5, beltWidth:9, bodyWidth:14.4,
-      flangeDiameter:26.9, flangeThickness:.8, totalWidth:16
+      boreType:'hex', bore:5, beltWidth:9, bodyWidth:10.6,
+      flangeDiameter:26.9, flangeThickness:2.2, totalWidth:15, flangeMode:'double',
+      sourceTitle:'REV 공식 도면', sourceUrl:'https://www.revrobotics.com/content/docs/GT2-Timing-Belt-Pulley-DR.pdf'
     }
   };
+  const flangeModeNames={double:'양면 플랜지',single:'단면 플랜지',none:'플랜지 없음'};
 
   function params(teeth = state.teeth) {
     const m = state.module;
@@ -194,8 +217,12 @@
   }
 
   function boreEnvelopeRadius() {
-    const radius=Math.max(0,state.bore/2);
+    const radius=effectiveBoreDiameter()/2;
     return state.boreType==='keyway' ? radius+Math.max(.1,state.keyDepth) : radius;
+  }
+
+  function effectiveBoreDiameter() {
+    return Math.max(0,state.bore+state.boreAllowance);
   }
 
   function pulleyMinimumSpec(pitch=state.beltPitch) {
@@ -299,17 +326,26 @@
     let flangeThickness=Math.max(.8,pitch*.25);
     const reference=matchingFrcPreset(teeth,pitch);
     if(reference){
-      flangeRadius=reference.flangeDiameter/2;
+      flangeRadius=reference.flangeDiameter ? reference.flangeDiameter/2 : toothTipRadius;
       flangeMargin=flangeRadius-toothTipRadius;
       flangeThickness=reference.flangeThickness;
+    }
+    const mode=reference?.flangeMode||state.flangeMode;
+    const flangeCount=mode==='double'?2:mode==='single'?1:0;
+    if(mode==='none'){
+      flangeRadius=toothTipRadius;
+      flangeMargin=0;
+      flangeThickness=0;
     }
     return {
       flangeRadius,
       flangeHeight:flangeMargin,
       flangeMargin,
       flangeThickness,
-      totalWidth:reference?reference.totalWidth:state.thickness+flangeThickness*2,
-      reference:reference?.label||null
+      totalWidth:reference?reference.totalWidth:state.thickness+flangeThickness*flangeCount,
+      reference:reference?.label||null,
+      mode,
+      flangeCount
     };
   }
 
@@ -319,7 +355,7 @@
     const same=(a,b,t=.051)=>Math.abs(a-b)<t;
     return teeth===preset.teeth && state.beltProfile===preset.profile && same(pitch,preset.pitch,.001) &&
       state.boreType===preset.boreType && same(state.bore,preset.bore) && same(state.beltWidth,preset.beltWidth) &&
-      same(state.thickness,preset.bodyWidth) ? preset : null;
+      same(state.thickness,preset.bodyWidth) && state.flangeMode===preset.flangeMode ? preset : null;
   }
 
   function applyFrcPreset(key) {
@@ -330,6 +366,7 @@
     $('pulley1').value=preset.teeth; $('pulley2').value=preset.teeth;
     $('bore').value=preset.bore; state.boreType=preset.boreType;
     $('beltWidth').value=preset.beltWidth; $('thickness').value=preset.bodyWidth;
+    state.flangeMode=preset.flangeMode;
     readInputs();
   }
 
@@ -344,7 +381,7 @@
   }
 
   function holePolygon(steps = 120) {
-    const r = Math.max(0, state.bore / 2);
+    const r = effectiveBoreDiameter()/2;
     if (r < .001) return [];
     if (state.boreType === 'hex') {
       return Array.from({length: 6}, (_, i) => polar(r, Math.PI / 6 + i * Math.PI / 3));
@@ -484,8 +521,10 @@
       pitchRadius:teeth*pitch/(Math.PI*2)
     };
     const body=buildMesh(pulleyGeometry(teeth,pitch,rotation),state.thickness);
+    if(spec.flangeCount===0) return body;
     const flangeOffset=(state.thickness+spec.flangeThickness)/2;
     const front=moveMeshZ(buildMesh(flangeGeometry,spec.flangeThickness),flangeOffset);
+    if(spec.flangeCount===1) return mergeMeshes([body,front]);
     const back=moveMeshZ(buildMesh(flangeGeometry,spec.flangeThickness),-flangeOffset);
     return mergeMeshes([body,front,back]);
   }
@@ -500,7 +539,7 @@
   }
 
   function meshProfileKey() {
-    return [state.module,state.pressure,state.backlash,state.bore,state.boreType,state.keyWidth,state.keyDepth,state.thickness].join('|');
+    return [state.module,state.pressure,state.backlash,state.bore,state.boreAllowance,state.boreType,state.keyWidth,state.keyDepth,state.thickness,state.flangeMode,state.frcPreset].join('|');
   }
 
   function resizeCanvas() {
@@ -647,8 +686,8 @@
       ctx.beginPath(); ctx.moveTo(arrowX+7,bottomY); ctx.lineTo(arrowX-4,bottomY-4); ctx.lineTo(arrowX-4,bottomY+4); ctx.closePath(); ctx.fill(); ctx.restore();
       const a1=state.angle, a2=state.angle*b.z1/b.z2;
       const hole=holePolygon(96);
-      drawGear2D(circlePolygon(flange2.flangeRadius,Math.max(180,b.z2*8),a2),rotateShape(hole,a2),x2,y,scale,r2,'rgba(58,127,137,.09)','#3a7f89','#3a7f89');
-      drawGear2D(circlePolygon(flange1.flangeRadius,Math.max(180,b.z1*8),a1),rotateShape(hole,a1),x1,y,scale,r1,'rgba(232,155,36,.11)','#b66f13','#b66f13');
+      if(flange2.flangeCount) drawGear2D(circlePolygon(flange2.flangeRadius,Math.max(180,b.z2*8),a2),rotateShape(hole,a2),x2,y,scale,r2,'rgba(58,127,137,.09)','#3a7f89','#3a7f89');
+      if(flange1.flangeCount) drawGear2D(circlePolygon(flange1.flangeRadius,Math.max(180,b.z1*8),a1),rotateShape(hole,a1),x1,y,scale,r1,'rgba(232,155,36,.11)','#b66f13','#b66f13');
       drawGear2D(pulleyPolygon(b.z2,b.pitch,a2),rotateShape(hole,a2),x2,y,scale,r2,'rgba(58,127,137,.16)','#3a7f89','#3a7f89');
       drawGear2D(pulleyPolygon(b.z1,b.pitch,a1),rotateShape(hole,a1),x1,y,scale,r1,'rgba(232,155,36,.22)','#b66f13','#b66f13');
       drawCenterMark(x1,y); drawCenterMark(x2,y);
@@ -729,7 +768,7 @@
     if (state.gearType === 'pulley') {
       const b=beltCalc(), center=Number.isFinite(b.center)?b.center:state.beltCenter;
       const pulleyItem=(teeth,angle,x,material)=>({
-        key:`pulley-flanged|${teeth}|${b.pitch}|${profile}`,
+        key:`pulley|${teeth}|${b.pitch}|${profile}`,
         create:()=>pulleyMesh(teeth,b.pitch,0),
         angle,x,y:0,material
       });
@@ -815,7 +854,7 @@
   function validate() {
     const p = params();
     const maxRadius = p.rf * .78;
-    const holeRadius = state.bore / 2 + (state.boreType === 'keyway' ? state.keyDepth : 0);
+    const holeRadius = effectiveBoreDiameter() / 2 + (state.boreType === 'keyway' ? state.keyDepth : 0);
     const warning = $('warning');
     if (state.gearType === 'pulley') {
       const b=beltCalc();
@@ -828,6 +867,9 @@
         warning.hidden=false;
       } else if (state.thickness < state.beltWidth + .5) {
         warning.textContent=`풀리 몸통 폭이 좁습니다. ${fmt(state.beltWidth)} mm 벨트에는 ${fmt(state.beltWidth+.5)} mm 이상을 권장합니다.`;
+        warning.hidden=false;
+      } else if (state.flangeMode==='none') {
+        warning.textContent='벨트 이탈 방지를 위해 한 쌍 중 최소 한 풀리에는 플랜지를 권장합니다.';
         warning.hidden=false;
       } else if (b.teethInMesh < 6) {
         warning.textContent=`작은 풀리 맞물림이 ${fmt(b.teethInMesh,1)}개입니다. 6개 이상을 권장합니다.`;
@@ -887,8 +929,10 @@
     document.querySelectorAll('[data-gear-type]').forEach(b=>b.classList.toggle('active',b.dataset.gearType===state.gearType));
     document.querySelectorAll('[data-belt-mode]').forEach(b=>b.classList.toggle('active',b.dataset.beltMode===state.beltMode));
     document.querySelectorAll('[data-export-target]').forEach(b=>b.classList.toggle('active',b.dataset.exportTarget===state.exportTarget));
+    document.querySelectorAll('[data-flange-mode]').forEach(b=>b.classList.toggle('active',b.dataset.flangeMode===state.flangeMode));
     $('centerModeControls').hidden=state.beltMode!=='center';
     $('lengthModeControls').hidden=state.beltMode!=='length';
+    $('boreOutputNotice').textContent=`설계값 Ø${fmt(state.bore)} mm → 가공 출력 Ø${fmt(effectiveBoreDiameter())} mm`;
 
     if (isPulley) {
       const b=beltCalc();
@@ -902,7 +946,7 @@
       $('metricLabel2').textContent='풀리 2 피치지름'; $('outsideDiameter').textContent=fmt(b.d2); $('metricUnit2').textContent=`mm · ${b.z2}T`;
       $('metricLabel3').textContent='권장 벨트'; $('baseDiameter').textContent=`${b.beltTeeth}T`; $('metricUnit3').textContent=`${fmt(b.length)} mm`;
       $('metricLabel4').textContent='실제 축간거리'; $('centerDistance').textContent=centerText; $('metricUnit4').textContent='mm · C';
-      $('checkTitle').textContent='벨트 조합 계산 완료'; $('meshMessage').textContent=`${state.beltProfile} · 양면 가이드 플랜지`;
+      $('checkTitle').textContent='벨트 조합 계산 완료'; $('meshMessage').textContent=`${state.beltProfile} · ${flangeModeNames[flange.mode]}`;
       $('contactLabel').textContent='작은 풀리 맞물림'; $('contactRatio').textContent=`${fmt(b.teethInMesh,1)} T`;
       $('contactBar').style.width=`${clamp(b.teethInMesh/10*100,8,100)}%`; $('checkGuide').textContent='6개 이상 권장'; $('checkStatus').textContent=b.teethInMesh>=6?'양호':'검토 필요';
       $('specLabel1').textContent='벨트 피치'; $('circularPitch').textContent=`${fmt(b.pitch,1)} mm`;
@@ -910,11 +954,16 @@
       $('specLabel3').textContent=state.beltMode==='center'?'요청 축간거리':'입력 벨트 길이'; $('dedendum').textContent=`${fmt(state.beltMode==='center'?state.beltCenter:state.beltLength)} mm`;
       $('specLabel4').textContent='플랜지 포함 폭'; $('wholeDepth').textContent=`${fmt(flange.totalWidth)} mm`;
       $('beltRecommendation').textContent=`${b.beltTeeth}T · ${fmt(b.length)} mm`;
-      $('beltCenterResult').textContent=`풀리 ${b.z1}T / ${b.z2}T · 양면 플랜지 · 축간거리 ${centerText} mm`;
+      $('beltCenterResult').textContent=`풀리 ${b.z1}T / ${b.z2}T · ${flangeModeNames[flange.mode]} · 축간거리 ${centerText} mm`;
       $('pulleyMinNotice').textContent=`현재 조건 최소 ${limit.minTeeth}T · 피치지름 ${fmt(limit.minPitchDiameter)} mm · 축간거리 ${fmt(pairLimit.minCenter)} mm · 벨트 ${fmt(pairLimit.minBeltLength)} mm`;
       $('frcReferenceNotice').textContent=referenceApplied
-        ? `${selectedReference.label} 도면 기준 적용 · 플랜지 Ø${fmt(selectedReference.flangeDiameter)} mm · 전체 폭 ${fmt(selectedReference.totalWidth)} mm`
+        ? `${selectedReference.label} 도면 기준 적용 · ${selectedReference.flangeDiameter?`플랜지 Ø${fmt(selectedReference.flangeDiameter)} mm · `:'무플랜지 · '}전체 폭 ${fmt(selectedReference.totalWidth)} mm`
         : selectedReference?`${selectedReference.label} 프리셋 값에서 편집됨 · 현재 치수로 범용 산출`:'직접 설계 모드 · 규격과 치수를 자유롭게 설정합니다.';
+      $('frcSourceLink').hidden=!selectedReference;
+      if(selectedReference){
+        $('frcSourceLink').href=selectedReference.sourceUrl;
+        $('frcSourceLink').textContent=`${selectedReference.sourceTitle} ↗`;
+      }
     } else if (isRing) {
       const pinion=params(state.ringPinionTeeth), innerRoot=p.rp+1.25*state.module, outer=innerRoot+state.ringRim;
       const center=p.rp-pinion.rp, difference=state.teeth-state.ringPinionTeeth;
@@ -960,9 +1009,11 @@
     $('keywayControls').hidden = state.boreType !== 'keyway';
     document.querySelectorAll('[data-bore-type]').forEach(b => b.classList.toggle('active', b.dataset.boreType === state.boreType));
     $('viewModeLabel').textContent = state.view === '2d' ? 'TOP / 2D' : 'ISOMETRIC / 3D';
-    const typeNames={spur:'인벌류트 스퍼기어 · 20 points/flank',ring:`내접기어 + ${state.ringPinionTeeth}T 피니언 · BETA`,rack:`랙 + ${state.rackPinionTeeth}T 피니언`,pulley:`${state.beltProfile} 타이밍 풀리 · 양면 플랜지 · BETA`};
+    if(!isPulley) $('frcSourceLink').hidden=true;
+    const pulleyMode=flangeModeNames[state.flangeMode];
+    const typeNames={spur:'인벌류트 스퍼기어 · 20 points/flank',ring:`내접기어 + ${state.ringPinionTeeth}T 피니언 · BETA`,rack:`랙 + ${state.rackPinionTeeth}T 피니언`,pulley:`${state.beltProfile} 타이밍 풀리 · ${pulleyMode} · BETA`};
     const partCount=(isSpur&&state.pair)||isRing||isRack||isPulley?2:1;
-    $('geometryStatus').textContent = state.view === '2d' ? typeNames[state.gearType] : isPulley?`${partCount}개 양면 플랜지 풀리 · 몸통 ${fmt(state.thickness,1)} mm`:`${partCount}개 솔리드 · ${fmt(state.thickness,1)} mm extrusion`;
+    $('geometryStatus').textContent = state.view === '2d' ? typeNames[state.gearType] : isPulley?`${partCount}개 ${pulleyMode} 풀리 · 몸통 ${fmt(state.thickness,1)} mm`:`${partCount}개 솔리드 · ${fmt(state.thickness,1)} mm extrusion`;
     $('orbitHint').hidden = state.view !== '3d';
     $('viewport').classList.toggle('is-3d', state.view === '3d');
     validate();
@@ -973,6 +1024,7 @@
     state.module = clamp(parseFloat($('module').value) || .2, .2, 10);
     state.pressure = parseFloat($('pressure').value);
     state.bore = clamp(parseFloat($('bore').value) || 0, 0, 60);
+    state.boreAllowance = clamp(parseFloat($('boreAllowance').value) || 0, -1, 2);
     state.keyWidth = clamp(parseFloat($('keyWidth').value) || .5, .5, 20);
     state.keyDepth = clamp(parseFloat($('keyDepth').value) || .2, .2, 10);
     state.ringRim = clamp(parseFloat($('ringRim').value) || 1, 1, 40);
@@ -1021,7 +1073,7 @@
   bindMirror('backlash', 'backlashRange');
   bindMirror('teeth2', 'teeth2Range');
   bindMirror('rpm', 'rpmRange');
-  ['pressure','bore','keyWidth','keyDepth','ringRim','ringPinionTeeth','rackBase','rackPinionTeeth','thickness','pairEnabled','beltProfile','pulley1','pulley2','beltCenter','beltLength','targetD1','targetD2','beltWidth'].forEach(id => $(id).addEventListener('input', readInputs));
+  ['pressure','bore','boreAllowance','keyWidth','keyDepth','ringRim','ringPinionTeeth','rackBase','rackPinionTeeth','thickness','pairEnabled','beltProfile','pulley1','pulley2','beltCenter','beltLength','targetD1','targetD2','beltWidth'].forEach(id => $(id).addEventListener('input', readInputs));
   $('frcPreset').addEventListener('change',()=>{
     applyFrcPreset($('frcPreset').value);
     const preset=frcPresets[state.frcPreset];
@@ -1047,6 +1099,11 @@
     showToast(`${names[state.gearType]} 설계 모드로 전환했습니다.`);
   }));
   document.querySelectorAll('[data-belt-mode]').forEach(btn=>btn.addEventListener('click',()=>{state.beltMode=btn.dataset.beltMode; updateUI();}));
+  document.querySelectorAll('[data-flange-mode]').forEach(btn=>btn.addEventListener('click',()=>{
+    state.flangeMode=btn.dataset.flangeMode;
+    updateUI();
+    showToast(`${flangeModeNames[state.flangeMode]} 구조로 변경했습니다.`);
+  }));
   document.querySelectorAll('[data-export-target]').forEach(btn=>btn.addEventListener('click',()=>{
     state.exportTarget=btn.dataset.exportTarget;
     updateUI();
@@ -1101,12 +1158,13 @@
   canvas.addEventListener('pointercancel', endDrag);
 
   function reset() {
-    const defaults = { gearType:'spur', teeth:24, module:2, pressure:20, bore:8, boreType:'circle', keyWidth:3, keyDepth:1.8, ringRim:6, ringPinionTeeth:18, rackBase:6, rackPinionTeeth:20, typeTeeth:{spur:24,ring:60,rack:24}, thickness:8, backlash:.12, teeth2:48, pair:true, beltMode:'center', frcPreset:'custom', beltProfile:'GT2', beltPitch:2, pulley1:20, pulley2:40, beltCenter:80, beltLength:300, targetD1:13, targetD2:26, beltWidth:6, rpm:24, exportTarget:'driver' };
+    const defaults = { gearType:'spur', teeth:24, module:2, pressure:20, bore:8, boreAllowance:.2, boreType:'circle', keyWidth:3, keyDepth:1.8, ringRim:6, ringPinionTeeth:18, rackBase:6, rackPinionTeeth:20, typeTeeth:{spur:24,ring:60,rack:24}, thickness:8, backlash:.12, teeth2:48, pair:true, beltMode:'center', frcPreset:'custom', flangeMode:'double', beltProfile:'GT2', beltPitch:2, pulley1:20, pulley2:40, beltCenter:80, beltLength:300, targetD1:13, targetD2:26, beltWidth:6, rpm:24, exportTarget:'driver' };
     Object.assign(state, defaults, { angle: 0, viewYaw: -.55, viewPitch: .83, zoom: 1 });
     $('teeth').value = $('teethRange').value = 24;
     $('module').value = $('moduleRange').value = 2;
     $('pressure').value = 20;
     $('bore').value = 8;
+    $('boreAllowance').value = .2;
     $('keyWidth').value = 3;
     $('keyDepth').value = 1.8;
     $('ringRim').value = 6;
@@ -1128,6 +1186,7 @@
     $('beltWidth').value = 6;
     $('rpm').value = $('rpmRange').value = 24;
     document.querySelectorAll('[data-export-target]').forEach(b=>b.classList.toggle('active',b.dataset.exportTarget==='driver'));
+    document.querySelectorAll('[data-flange-mode]').forEach(b=>b.classList.toggle('active',b.dataset.flangeMode==='double'));
     updateUI();
     showToast('기본 설계값으로 초기화했습니다.');
   }
@@ -1160,7 +1219,7 @@
         name:'pulley',teeth:b.z1,x:0,y:0,
         geometry:pulleyGeometry(b.z1,b.pitch,0),
         mesh:pulleyMesh(b.z1,b.pitch,0),
-        guides:[circlePolygon(spec.flangeRadius,Math.max(180,b.z1*10))]
+        guides:spec.flangeCount?[circlePolygon(spec.flangeRadius,Math.max(180,b.z1*10))]:[]
       }];
     }
     if (state.gearType === 'ring') {
@@ -1334,7 +1393,7 @@
     const boreNames={circle:'원형',hex:'외접 6각',keyway:'키자리'};
     const keySpec=state.boreType==='keyway'?`\n키 폭/깊이: ${fmt(state.keyWidth)} / ${fmt(state.keyDepth)} mm`:'';
     let text;
-    if(state.gearType==='pulley') { const b=beltCalc(),f=pulleyFlangeSpec(b.z1,b.pitch),limit=pulleyMinimumSpec(b.pitch),ref=matchingFrcPreset(b.z1,b.pitch); text=`GearForge 벨트·풀리 사양\nFRC 도면 기준: ${ref?.label||'범용 직접 설계'}\n규격: ${state.beltProfile}\n피치: ${b.pitch} mm\n풀리: ${b.z1}T / ${b.z2}T\n현재 보어 기준 최소: ${limit.minTeeth}T\n피치지름: ${fmt(b.d1)} / ${fmt(b.d2)} mm\n플랜지 외경: ${fmt(f.flangeRadius*2)} mm\n벨트: ${b.beltTeeth}T · ${fmt(b.length)} mm\n실제 축간거리: ${fmt(b.center)} mm\n맞물림 잇수: ${fmt(b.teethInMesh,1)}T\n풀리 구조: 양면 가이드 플랜지\n몸통 폭: ${fmt(state.thickness)} mm\n플랜지 포함 폭: ${fmt(f.totalWidth)} mm`; }
+    if(state.gearType==='pulley') { const b=beltCalc(),f=pulleyFlangeSpec(b.z1,b.pitch),limit=pulleyMinimumSpec(b.pitch),ref=matchingFrcPreset(b.z1,b.pitch); text=`GearForge 벨트·풀리 사양\nFRC 도면 기준: ${ref?.label||'범용 직접 설계'}\n규격: ${state.beltProfile}\n피치: ${b.pitch} mm\n풀리: ${b.z1}T / ${b.z2}T\n현재 보어 기준 최소: ${limit.minTeeth}T\n피치지름: ${fmt(b.d1)} / ${fmt(b.d2)} mm\n플랜지: ${flangeModeNames[f.mode]}${f.flangeCount?` · 외경 ${fmt(f.flangeRadius*2)} mm`:''}\n벨트: ${b.beltTeeth}T · ${fmt(b.length)} mm\n실제 축간거리: ${fmt(b.center)} mm\n맞물림 잇수: ${fmt(b.teethInMesh,1)}T\n몸통 폭: ${fmt(state.thickness)} mm\n전체 폭: ${fmt(f.totalWidth)} mm\n보어 설계값/출력값: ${fmt(state.bore)} / ${fmt(effectiveBoreDiameter())} mm`; }
     else if(state.gearType==='ring') { const pp=params(state.ringPinionTeeth); text=`GearForge 내접기어 세트\n내접기어: ${state.teeth}T\n피니언: ${state.ringPinionTeeth}T\n모듈/압력각: ${state.module} mm / ${state.pressure}°\n중심거리: ${fmt(p.rp-pp.rp)} mm\n감속비: ${fmt(state.teeth/state.ringPinionTeeth,3)} : 1\n피니언 구멍: ${boreNames[state.boreType]} · ${fmt(state.bore)} mm${keySpec}\n두께: ${fmt(state.thickness)} mm`; }
     else if(state.gearType==='rack') { const pp=params(state.rackPinionTeeth), pitchLine=1.25*state.module+state.rackBase; text=`GearForge 랙·피니언 세트\n랙: ${state.teeth}T\n피니언: ${state.rackPinionTeeth}T\n모듈/압력각: ${state.module} mm / ${state.pressure}°\n조립거리(바닥→축): ${fmt(pitchLine+pp.rp)} mm\n1회전 이동량: ${fmt(Math.PI*state.module*state.rackPinionTeeth)} mm\n피니언 구멍: ${boreNames[state.boreType]} · ${fmt(state.bore)} mm${keySpec}\n두께: ${fmt(state.thickness)} mm`; }
     else text=`GearForge ${state.gearType} 설계 사양\n잇수: ${state.teeth}\n모듈: ${state.module} mm\n압력각: ${state.pressure}°\n피치원: ${fmt(p.rp*2)} mm\n중심구멍: ${boreNames[state.boreType]} · ${fmt(state.bore)} mm${keySpec}\n두께: ${fmt(state.thickness)} mm\n백래시: ${fmt(state.backlash)} mm${state.gearType==='spur'&&state.pair?`\n상대기어: ${state.teeth2}T\n중심거리: ${fmt(p.rp+p2.rp)} mm`:''}`;
